@@ -49,11 +49,29 @@
 
 #define kRFAttributedXMLDecoderDefaultContainerClass [NSArray class]
 
+static NSString *xmlns = @"xmlns";
+
+static BOOL isTagWithPrefix(NSString *key)
+{
+    BOOL result = NO;
+    if (key && ([key rangeOfString:@":"].location != NSNotFound))
+        result = YES;
+    return result;
+}
+
+static BOOL isDefineNamespace(NSString *key)
+{
+    BOOL result = NO;
+    if (key && [key hasPrefix:[NSString stringWithFormat:@"%@:", xmlns]])
+        result = YES;
+    return result;
+}
+
 @interface RFAttributedXMLDecoder () <NSXMLParserDelegate> {
     NSXMLParser *_parser;
     RFXMLSerializationContext *_context;
     Class _rootNodeClass;
-    
+    NSMutableSet *_declaredNamespaces;
     NSNumberFormatter *_numberFormatter;
     RFObjectPool* _dateFormattersPool;
     
@@ -80,10 +98,13 @@
     _result = nil;
     _context = [RFXMLSerializationContext new];
     _rootNodeClass = rootObjectClass;
+    _declaredNamespaces = [[NSMutableSet alloc] init];
     
     _parser = [[NSXMLParser alloc] initWithData:xmlData];
     _parser.delegate = self;
     _parseError = nil;
+
+    _parser.shouldReportNamespacePrefixes = YES;
     
     [_parser parse];
     
@@ -130,12 +151,12 @@
         }
     }
     
-    _context.elementSkipped = NO;
-    
     // Check if container creation was delayed and return expected elementClass for current element in it
-    Class elementClass = [self addContainerForElementWithNameIfNeeded:elementName];
+    BOOL elementSkipped = NO;
+    Class elementClass = [self addContainerForElementWithNameIfNeeded:elementName elementSkipped:&elementSkipped];
 
     [_context saveContext];
+    _context.elementSkipped = elementSkipped;
     _context.simpleValue = YES; // assume that element is simple value by default
     _context.currentVirtualTag = nil;
  
@@ -144,7 +165,9 @@
         //  top element
         if (!_result && !_context.elementName) elementClass = _rootNodeClass;
         _context.elementName = elementName;
-
+        
+        [self checkPrefix:elementName];
+        
         // Get properties for element Class and process attributeDict, probably containing some of them
         [self processProperties:RFSerializationPropertiesForClass(elementClass) withElementAttributes:attributeDict andCreateElementIfNeeded:elementClass];
     }
@@ -161,7 +184,7 @@
     [_context restoreContext];
 
     if (!isElementSkipped && !isSimpleValue) {
-        if (!currentVirtualTag) NSParameterAssert(contextElementName == elementName);
+        if (!currentVirtualTag) NSParameterAssert([contextElementName isEqualToString:elementName]);
 
         NSString *propertyName = [_context.properties[contextElementName] propertyName];
         [self setCurrentNodeValue:element forKey:propertyName ? propertyName : contextElementName];
@@ -169,6 +192,14 @@
 
     if (currentVirtualTag)
         [self parser:parser didEndElement:elementName namespaceURI:namespaceURI qualifiedName:qName];
+}
+
+- (void)parser:(NSXMLParser *)parser didStartMappingPrefix:(NSString *)prefix toURI:(NSString *)namespaceURI {
+    [_declaredNamespaces addObject:prefix];
+}
+
+- (void)parser:(NSXMLParser *)parser didEndMappingPrefix:(NSString *)prefix {
+    [_declaredNamespaces removeObject:prefix];
 }
 
 - (void)parser:(NSXMLParser *)parser foundCharacters:(NSString *)string {
@@ -282,7 +313,7 @@
     return result;
 }
 
-- (Class)addContainerForElementWithNameIfNeeded:(NSString*)elementName {
+- (Class)addContainerForElementWithNameIfNeeded:(NSString*)elementName elementSkipped:(BOOL*)elementSkipped {
     Class result = Nil;
     
     if (!_context.properties) {
@@ -312,7 +343,7 @@
         if (!elementProperty) {
             
             RFSCLogWarn(@"RFAttributedXMLDecoder: Skipped missing property '%@'", elementName);
-            _context.elementSkipped = YES;
+            *elementSkipped = YES;
         }
         result = elementProperty.typeClass;
     }
@@ -324,6 +355,8 @@
 
     RFXMLSerializable *xmlAttributes = [property attributeWithType:[RFXMLSerializable class]];
     NSString *serializationKey = RFSerializationKeyForProperty(property);
+    
+    [self checkPrefix:serializationKey];
     
     if (xmlAttributes.isTagAttribute) {
         id decodedValue = [self convertString:attributeDict[serializationKey] forProperty:property];
@@ -372,6 +405,17 @@
     _context.properties = [lazyProperties count] ? [NSDictionary dictionaryWithDictionary:lazyProperties] : nil;
     _context.itemTags = [itemTags count] ? [NSDictionary dictionaryWithDictionary:itemTags] : nil;
 
+}
+
+/**
+ Check prefix among namespaces, that declared before
+ */
+- (void)checkPrefix:(NSString *)serializationKey {
+    if (serializationKey && !isDefineNamespace(serializationKey) && isTagWithPrefix(serializationKey)) {
+        NSArray *components = [serializationKey componentsSeparatedByString:@":"];
+        NSParameterAssert([components count] == 2);
+        NSParameterAssert([_declaredNamespaces containsObject:components[0]]);
+    }
 }
 
 @end
