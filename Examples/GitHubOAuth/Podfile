@@ -1,0 +1,9 @@
+platform :ios, '8.1'
+
+pod 'ROADFramework'
+pod 'NXOAuth2Client'
+
+post_install do |installer|
+    require File.expand_path('ROADConfigurator.rb', './Pods/libObjCAttr/libObjCAttr/Resources/')
+    ROADConfigurator::post_install(installer)
+end

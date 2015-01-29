@@ -1,0 +1,30 @@
+PODS:
+  - libObjCAttr (1.3.4)
+  - NXOAuth2Client (1.2.8)
+  - ROADFramework (1.4.2):
+    - ROADFramework/ROADCore (= 1.4.2)
+    - ROADFramework/ROADSerialization (= 1.4.2)
+    - ROADFramework/ROADServices (= 1.4.2)
+    - ROADFramework/ROADWebService (= 1.4.2)
+  - ROADFramework/ROADCore (1.4.2):
+    - libObjCAttr (~> 1.3.0)
+  - ROADFramework/ROADSerialization (1.4.2):
+    - ROADFramework/ROADCore
+    - ROADFramework/ROADServices
+  - ROADFramework/ROADServices (1.4.2):
+    - ROADFramework/ROADCore
+  - ROADFramework/ROADWebService (1.4.2):
+    - ROADFramework/ROADCore
+    - ROADFramework/ROADSerialization
+    - ROADFramework/ROADServices
+
+DEPENDENCIES:
+  - NXOAuth2Client
+  - ROADFramework
+
+SPEC CHECKSUMS:
+  libObjCAttr: 2b3ff80a38b9260f07e80bd37bf9a5200b6da470
+  NXOAuth2Client: e4568c4756acfba0b1df3466ad3a9e094fd761a3
+  ROADFramework: 0f752717c5da24611888d374c79013f9530a0ddd
+
+COCOAPODS: 0.35.0
